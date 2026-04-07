@@ -13,6 +13,9 @@ The patch is scoped to the following USB IDs:
 - `33fa:0010`
 - `33fa:0012`
 
+Barrot is a China-based wireless/Bluetooth brand. Official site:
+<https://en.barrot.com.cn/>.
+
 No other adapters are matched by this patch.
 
 ## Problem Statement
