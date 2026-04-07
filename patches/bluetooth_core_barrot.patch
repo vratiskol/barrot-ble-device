@@ -1,0 +1,25 @@
+diff --git a/include/net/bluetooth/hci.h b/include/net/bluetooth/hci.h
+index 79d25871cc6f..710d2dac9416 100644
+--- a/include/net/bluetooth/hci.h
++++ b/include/net/bluetooth/hci.h
+@@ -288,6 +288,15 @@ enum {
+ 	 */
+ 	HCI_QUIRK_BROKEN_MWS_TRANSPORT_CONFIG,
+ 
++	/*
++	 * Some controllers like the Barrot BR8554 (33fa:0010/0012) are non
++	 * compliant and timeout when HCI_OP_READ_LOCAL_EXT_FEATURES is sent.
++	 * Setting this quirk skips the read and lets the device finish
++	 * initialization.
++	 */
++	HCI_QUIRK_BROKEN_LOCAL_EXT_FEATURES,
++
+ 	/* When this quirk is set, max_page for local extended features
+ 	 * is set to 1, even if controller reports higher number. Some
+ 	 * controllers (e.g. RTL8723CS) report more pages, but they
+@@ -295,7 +304,7 @@ enum {
+ 	 * don't actually support features declared there.
+ 	 */
+ 	HCI_QUIRK_BROKEN_LOCAL_EXT_FEATURES_PAGE_2,
+ 
+*** End Patch

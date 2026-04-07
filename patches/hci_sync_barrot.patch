@@ -1,0 +1,15 @@
+diff --git a/net/bluetooth/hci_sync.c b/net/bluetooth/hci_sync.c
+index c2367e3f1f32..f5ed72e0dd03 100644
+--- a/net/bluetooth/hci_sync.c
++++ b/net/bluetooth/hci_sync.c
+@@ -3947,6 +3947,9 @@ static int hci_read_local_ext_features_sync(struct hci_dev *hdev, u8 page)
+ 
+ static int hci_read_local_ext_features_1_sync(struct hci_dev *hdev)
+ {
++	if (hci_test_quirk(hdev, HCI_QUIRK_BROKEN_LOCAL_EXT_FEATURES))
++		return 0;
++
+ 	return hci_read_local_ext_features_sync(hdev, 0x01);
+ }
+ 
+*** End Patch

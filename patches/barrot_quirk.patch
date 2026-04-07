@@ -1,0 +1,66 @@
+diff --git a/drivers/bluetooth/btusb.c b/drivers/bluetooth/btusb.c
+index c07d57eac..c50094ea6 100644
+--- a/drivers/bluetooth/btusb.c
++++ b/drivers/bluetooth/btusb.c
+@@ -65,6 +65,7 @@ static struct usb_driver btusb_driver;
+ #define BTUSB_INTEL_BROKEN_INITIAL_NCMD BIT(25)
+ #define BTUSB_INTEL_NO_WBS_SUPPORT	BIT(26)
+ #define BTUSB_ACTIONS_SEMI		BIT(27)
++#define BTUSB_BROKEN_LOCAL_EXT_FEATURES BIT(28)
+ 
+ static const struct usb_device_id btusb_table[] = {
+ 	/* Generic Bluetooth USB device */
+@@ -799,6 +800,10 @@ static const struct usb_device_id quirks_table[] = {
+ 	/* Actions Semiconductor ATS2851 based devices */
+ 	{ USB_DEVICE(0x10d7, 0xb012), .driver_info = BTUSB_ACTIONS_SEMI },
+ 
++	/* Barrot BR8554 based devices */
++	{ USB_DEVICE(0x33fa, 0x0010), .driver_info = BTUSB_BROKEN_LOCAL_EXT_FEATURES },
++	{ USB_DEVICE(0x33fa, 0x0012), .driver_info = BTUSB_BROKEN_LOCAL_EXT_FEATURES },
++
+ 	/* Silicon Wave based devices */
+ 	{ USB_DEVICE(0x0c10, 0x0000), .driver_info = BTUSB_SWAVE },
+ 
+@@ -4057,6 +4062,9 @@ static int btusb_probe(struct usb_interface *intf,
+ 	if (id->driver_info & BTUSB_INVALID_LE_STATES)
+ 		set_bit(HCI_QUIRK_BROKEN_LE_STATES, &hdev->quirks);
+ 
++	if (id->driver_info & BTUSB_BROKEN_LOCAL_EXT_FEATURES)
++		set_bit(HCI_QUIRK_BROKEN_LOCAL_EXT_FEATURES, &hdev->quirks);
++
+ 	if (id->driver_info & BTUSB_DIGIANSWER) {
+ 		data->cmdreq_type = USB_TYPE_VENDOR;
+ 		set_bit(HCI_QUIRK_RESET_ON_CLOSE, &hdev->quirks);
+diff --git a/include/net/bluetooth/hci.h b/include/net/bluetooth/hci.h
+index 4b3200542..56887d12c 100644
+--- a/include/net/bluetooth/hci.h
++++ b/include/net/bluetooth/hci.h
+@@ -286,6 +286,14 @@ enum {
+ 	 */
+ 	HCI_QUIRK_BROKEN_MWS_TRANSPORT_CONFIG,
+ 
++	/*
++	 * Some controllers like the Barrot BR8554 (33fa:0010/0012) are non
++	 * compliant and timeout when HCI_OP_READ_LOCAL_EXT_FEATURES is sent.
++	 * Setting this quirk skips the read and lets the device finish
++	 * initialization.
++	 */
++	HCI_QUIRK_BROKEN_LOCAL_EXT_FEATURES,
++
+ 	/* When this quirk is set, max_page for local extended features
+ 	 * is set to 1, even if controller reports higher number. Some
+ 	 * controllers (e.g. RTL8723CS) report more pages, but they
+diff --git a/net/bluetooth/hci_sync.c b/net/bluetooth/hci_sync.c
+index 80eab1d0e..61e4c9370 100644
+--- a/net/bluetooth/hci_sync.c
++++ b/net/bluetooth/hci_sync.c
+@@ -3954,6 +3954,9 @@ static int hci_read_local_ext_features_sync(struct hci_dev *hdev, u8 page)
+ 
+ static int hci_read_local_ext_features_1_sync(struct hci_dev *hdev)
+ {
++	if (hci_test_quirk(hdev, HCI_QUIRK_BROKEN_LOCAL_EXT_FEATURES))
++		return 0;
++
+ 	return hci_read_local_ext_features_sync(hdev, 0x01);
+ }
+ 
