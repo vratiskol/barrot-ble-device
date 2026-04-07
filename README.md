@@ -52,5 +52,5 @@ git init
 git branch -M main
 git add .
 git commit -m "Initial Barrot BR8554 Bluetooth patch set"
-gh repo create parrot-ble-device --public --source=. --remote=origin --push
+gh repo create barrot-ble-device --public --source=. --remote=origin --push
 ```
