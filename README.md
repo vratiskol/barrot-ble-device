@@ -4,8 +4,19 @@ This repository packages a small Linux Bluetooth patch set for Barrot BR8554-bas
 
 The consolidated fix adds a USB quirk for device IDs `33fa:0010` and `33fa:0012`, introduces `HCI_QUIRK_BROKEN_LOCAL_EXT_FEATURES`, and skips the offending extended-features read for affected controllers.
 
+## Example Hardware
+
+The patch targets USB adapters sold in this general dongle form factor:
+
+[![Example USB Bluetooth dongle](images/barrot-usb-dongle-example.jpg)](https://a.aliexpress.com/_EuhF5xE)
+
+Marketplace reference: <https://a.aliexpress.com/_EuhF5xE>
+
+This image is included as a visual example of the hardware type, not as authoritative vendor documentation for the chipset itself.
+
 ## Repository Layout
 
+- `images/barrot-usb-dongle-example.jpg`: marketplace screenshot showing the adapter style
 - `patches/barrot_quirk.patch`: consolidated patch set for direct application
 - `patches/bluetooth_core_barrot.patch`: split patch for the HCI quirk definition
 - `patches/hci_sync_barrot.patch`: split patch for the sync-path workaround
