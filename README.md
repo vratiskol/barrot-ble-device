@@ -36,7 +36,7 @@ The rebuild script applies only `patches/barrot_quirk.patch`. The split patches 
 Clone this repository and point the scripts at a kernel tree:
 
 ```bash
-git clone <your-repo-url> barrot-ble-device
+git clone https://github.com/vratiskol/barrot-ble-device.git barrot-ble-device
 cd barrot-ble-device
 ./scripts/rebuild_barrot_ble.sh --kernel-dir /path/to/linux --no-install
 sudo ./scripts/install_barrot_modules.sh --kernel-dir /path/to/linux
