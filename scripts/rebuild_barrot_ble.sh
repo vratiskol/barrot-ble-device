@@ -6,25 +6,44 @@ usage() {
 	cat <<'EOF'
 Usage: rebuild_barrot_ble.sh [options]
 
-Apply the consolidated Barrot BR8554 patch set to a Linux kernel tree and
-rebuild the Bluetooth modules.
+Apply the consolidated Barrot BR8554 patch set to a Linux kernel source tree
+and rebuild the Bluetooth modules.
 
 Options:
-  --kernel-dir PATH  Path to the Linux kernel source/build tree. Defaults to
-                     the current working directory.
-  -j, --jobs N       Number of parallel build jobs. Defaults to detected CPU
-                     count.
-  --install          Install rebuilt modules after a successful build.
-  --no-install       Build only. This is the default.
-  --skip-patch       Skip patch application and rebuild an already-patched tree.
-  -h, --help         Show this help message.
+  --kernel-dir PATH       Path to the Linux kernel source tree. Defaults to the
+                          current working directory.
+  --kernel-release REL    Module vermagic/kernel release. Defaults to uname -r.
+  --kernel-config PATH    .config to copy before build. Defaults to the running
+                          kernel header config when present.
+  --module-symvers PATH   Module.symvers to seed before build. Defaults to the
+                          running kernel header Module.symvers when present.
+  --arch ARCH             Kernel ARCH. Defaults from uname -m.
+  --cc CC                 Compiler passed to make, for example gcc-12.
+  -j, --jobs N            Number of parallel build jobs. Defaults to CPU count.
+  --install               Install rebuilt modules after a successful build.
+  --no-install            Build only. This is the default.
+  --skip-patch            Skip patch application and rebuild an already-patched tree.
+  -h, --help              Show this help message.
 EOF
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DEFAULT_JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)"
+
+case "$(uname -m)" in
+	aarch64|arm64) DEFAULT_ARCH="arm64" ;;
+	armv7l|armv6l) DEFAULT_ARCH="arm" ;;
+	x86_64) DEFAULT_ARCH="x86_64" ;;
+	*) DEFAULT_ARCH="$(uname -m)" ;;
+esac
+
 KERNEL_DIR="$(pwd)"
+KERNEL_RELEASE="$(uname -r)"
+KERNEL_CONFIG=""
+MODULE_SYMVERS=""
+KERNEL_ARCH="${KERNEL_ARCH:-${DEFAULT_ARCH}}"
+CC_ARG="${CC:-}"
 JOBS="${DEFAULT_JOBS}"
 DO_INSTALL=0
 APPLY_PATCHES=1
@@ -40,6 +59,46 @@ while (($#)); do
 				exit 1
 			fi
 			KERNEL_DIR="$2"
+			shift 2
+			;;
+		--kernel-release)
+			if (($# < 2)); then
+				echo "--kernel-release requires a value." >&2
+				exit 1
+			fi
+			KERNEL_RELEASE="$2"
+			shift 2
+			;;
+		--kernel-config)
+			if (($# < 2)); then
+				echo "--kernel-config requires a value." >&2
+				exit 1
+			fi
+			KERNEL_CONFIG="$2"
+			shift 2
+			;;
+		--module-symvers)
+			if (($# < 2)); then
+				echo "--module-symvers requires a value." >&2
+				exit 1
+			fi
+			MODULE_SYMVERS="$2"
+			shift 2
+			;;
+		--arch)
+			if (($# < 2)); then
+				echo "--arch requires a value." >&2
+				exit 1
+			fi
+			KERNEL_ARCH="$2"
+			shift 2
+			;;
+		--cc)
+			if (($# < 2)); then
+				echo "--cc requires a value." >&2
+				exit 1
+			fi
+			CC_ARG="$2"
 			shift 2
 			;;
 		-j|--jobs)
@@ -76,8 +135,10 @@ done
 
 KERNEL_DIR="$(cd "${KERNEL_DIR}" && pwd)"
 
-if [ ! -f "${KERNEL_DIR}/Makefile" ] || [ ! -d "${KERNEL_DIR}/include/net/bluetooth" ]; then
-	echo "Kernel tree not found at ${KERNEL_DIR}" >&2
+if [ ! -f "${KERNEL_DIR}/Makefile" ] ||
+	[ ! -d "${KERNEL_DIR}/include/net/bluetooth" ] ||
+	[ ! -d "${KERNEL_DIR}/drivers/bluetooth" ]; then
+	echo "Kernel source tree not found at ${KERNEL_DIR}" >&2
 	exit 1
 fi
 
@@ -94,6 +155,31 @@ if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
 		echo "Python is required to synchronise Module.symvers." >&2
 		exit 1
 	fi
+fi
+
+if [ -z "${KERNEL_CONFIG}" ] && [ -f "/lib/modules/${KERNEL_RELEASE}/build/.config" ]; then
+	KERNEL_CONFIG="/lib/modules/${KERNEL_RELEASE}/build/.config"
+fi
+if [ -z "${MODULE_SYMVERS}" ] && [ -f "/lib/modules/${KERNEL_RELEASE}/build/Module.symvers" ]; then
+	MODULE_SYMVERS="/lib/modules/${KERNEL_RELEASE}/build/Module.symvers"
+fi
+
+if [ -n "${KERNEL_CONFIG}" ]; then
+	echo "[*] Seeding .config from ${KERNEL_CONFIG}"
+	cp "${KERNEL_CONFIG}" "${KERNEL_DIR}/.config"
+elif [ ! -f "${KERNEL_DIR}/.config" ]; then
+	echo "No .config found. Pass --kernel-config or prepare the kernel tree first." >&2
+	exit 1
+fi
+
+if [ -n "${MODULE_SYMVERS}" ]; then
+	echo "[*] Seeding Module.symvers from ${MODULE_SYMVERS}"
+	cp "${MODULE_SYMVERS}" "${KERNEL_DIR}/Module.symvers"
+fi
+
+MAKE_ARGS=(ARCH="${KERNEL_ARCH}" KERNELRELEASE="${KERNEL_RELEASE}")
+if [ -n "${CC_ARG}" ]; then
+	MAKE_ARGS+=(CC="${CC_ARG}")
 fi
 
 apply_patch_file() {
@@ -122,11 +208,14 @@ else
 	echo "[*] Skipping patch application per --skip-patch."
 fi
 
-echo "[*] Refreshing configuration (make olddefconfig)"
-make -C "${KERNEL_DIR}" olddefconfig >/dev/null
+echo "[*] Refreshing configuration"
+make -C "${KERNEL_DIR}" "${MAKE_ARGS[@]}" olddefconfig >/dev/null
+
+echo "[*] Preparing module build for ${KERNEL_RELEASE}"
+make -C "${KERNEL_DIR}" "${MAKE_ARGS[@]}" modules_prepare
 
 echo "[*] Building patched net/bluetooth modules"
-make -C "${KERNEL_DIR}" -j"${JOBS}" M=net/bluetooth modules
+make -C "${KERNEL_DIR}" "${MAKE_ARGS[@]}" -j"${JOBS}" M=net/bluetooth modules
 
 ROOT_SYMVERS="${KERNEL_DIR}/Module.symvers"
 NET_SYMVERS="${KERNEL_DIR}/net/bluetooth/Module.symvers"
@@ -152,9 +241,8 @@ for line in net.read_text().splitlines():
     if not line.strip():
         continue
     parts = line.split("\t")
-    if len(parts) < 3:
-        continue
-    net_entries[parts[1]] = line
+    if len(parts) >= 3:
+        net_entries[parts[1]] = line
 
 updated = []
 seen = set()
@@ -168,9 +256,8 @@ for line in root.read_text().splitlines():
     symbol = parts[1]
     module = parts[2]
     if module == "net/bluetooth/bluetooth" and symbol in net_entries:
-        if symbol not in seen:
-            updated.append(net_entries[symbol])
-            seen.add(symbol)
+        updated.append(net_entries[symbol])
+        seen.add(symbol)
     else:
         updated.append(line)
 
@@ -182,11 +269,17 @@ root.write_text("\n".join(updated) + "\n")
 PY
 
 echo "[*] Building patched drivers/bluetooth modules"
-make -C "${KERNEL_DIR}" -j"${JOBS}" M=drivers/bluetooth modules
+make -C "${KERNEL_DIR}" "${MAKE_ARGS[@]}" -j"${JOBS}" M=drivers/bluetooth modules
+
+BUILT_RELEASE="$(modinfo -F vermagic "${KERNEL_DIR}/drivers/bluetooth/btusb.ko" | awk '{print $1}')"
+if [ "${BUILT_RELEASE}" != "${KERNEL_RELEASE}" ]; then
+	echo "Built btusb.ko vermagic ${BUILT_RELEASE}, expected ${KERNEL_RELEASE}" >&2
+	exit 1
+fi
 
 if [ "${DO_INSTALL}" -eq 1 ]; then
 	echo "[*] Installing rebuilt Bluetooth modules"
-	"${SCRIPT_DIR}/install_barrot_modules.sh" --kernel-dir "${KERNEL_DIR}"
+	"${SCRIPT_DIR}/install_barrot_modules.sh" --kernel-dir "${KERNEL_DIR}" --kernel-release "${KERNEL_RELEASE}"
 	echo "[*] Installation complete. Reload Bluetooth modules or reboot to activate."
 else
 	echo "[*] Build complete. Skipped installation per --no-install."

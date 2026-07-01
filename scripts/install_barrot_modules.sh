@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
 	cat <<'EOF'
-Usage: install_barrot_modules.sh [--kernel-dir PATH]
+Usage: install_barrot_modules.sh [--kernel-dir PATH] [--kernel-release REL]
 
 Install rebuilt Bluetooth modules from a Linux kernel source/build tree into
 the currently running system's module directory.
@@ -12,11 +12,14 @@ the currently running system's module directory.
 Options:
   --kernel-dir PATH  Path to the Linux kernel source/build tree. Defaults to
                      the current working directory.
+  --kernel-release REL
+                     Kernel release under /lib/modules. Defaults to uname -r.
   -h, --help         Show this help message.
 EOF
 }
 
 KERNEL_DIR="$(pwd)"
+KERNEL_RELEASE="$(uname -r)"
 
 while (($#)); do
 	case "$1" in
@@ -26,6 +29,14 @@ while (($#)); do
 				exit 1
 			fi
 			KERNEL_DIR="$2"
+			shift 2
+			;;
+		--kernel-release)
+			if (($# < 2)); then
+				echo "--kernel-release requires a value." >&2
+				exit 1
+			fi
+			KERNEL_RELEASE="$2"
 			shift 2
 			;;
 		-h|--help)
@@ -83,7 +94,6 @@ if [ ${#missing[@]} -gt 0 ]; then
 	exit 1
 fi
 
-KERNEL_RELEASE="$(uname -r)"
 MODULE_ROOT="/lib/modules/${KERNEL_RELEASE}"
 timestamp="$(date +%Y%m%d%H%M%S)"
 
@@ -116,7 +126,7 @@ for entry in "${MODULES[@]}"; do
 	install_module "${src}" "${dst}"
 done
 
-depmod -a
+depmod -a "${KERNEL_RELEASE}"
 
 echo "depmod completed. Reload modules with:"
 echo "  modprobe -r btusb btbcm btintel btrtl rfcomm bnep hidp bluetooth"

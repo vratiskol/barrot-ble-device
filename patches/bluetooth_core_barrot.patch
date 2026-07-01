@@ -1,8 +1,8 @@
 diff --git a/include/net/bluetooth/hci.h b/include/net/bluetooth/hci.h
-index 79d25871cc6f..710d2dac9416 100644
+index 4b3200542..eac750c90 100644
 --- a/include/net/bluetooth/hci.h
 +++ b/include/net/bluetooth/hci.h
-@@ -288,6 +288,15 @@ enum {
+@@ -286,6 +286,21 @@ enum {
  	 */
  	HCI_QUIRK_BROKEN_MWS_TRANSPORT_CONFIG,
  
@@ -14,12 +14,13 @@ index 79d25871cc6f..710d2dac9416 100644
 +	 */
 +	HCI_QUIRK_BROKEN_LOCAL_EXT_FEATURES,
 +
++	/*
++	 * Some controllers falsely advertise BR/EDR local-name support but
++	 * timeout or wedge when HCI_OP_READ_LOCAL_NAME is sent during init.
++	 * Setting this quirk skips that non-essential startup read.
++	 */
++	HCI_QUIRK_BROKEN_READ_LOCAL_NAME,
++
  	/* When this quirk is set, max_page for local extended features
  	 * is set to 1, even if controller reports higher number. Some
  	 * controllers (e.g. RTL8723CS) report more pages, but they
-@@ -295,7 +304,7 @@ enum {
- 	 * don't actually support features declared there.
- 	 */
- 	HCI_QUIRK_BROKEN_LOCAL_EXT_FEATURES_PAGE_2,
- 
-*** End Patch
