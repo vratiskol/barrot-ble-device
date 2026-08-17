@@ -4,7 +4,7 @@
 
 This document describes the full Linux Bluetooth patch set in this repository and the exact behavior it changes for Barrot BR8554-based USB adapters.
 
-The patch exists because some BR8554 adapters fail during controller initialization when the kernel asks for local extended feature information or the BR/EDR local name. The failure prevents the controller from completing normal bring-up and can leave the HCI device down with a zero Bluetooth address.
+The patch exists because some BR8554 adapters fail during controller initialization when the kernel asks for the BR/EDR buffer size, local extended feature information, or local name. The failure prevents normal bring-up and can leave the HCI device down with a zero ACL MTU.
 
 ## Affected Hardware
 
@@ -32,7 +32,7 @@ The patch fixes that by marking the affected devices with a dedicated quirk bund
 flowchart TD
     A[USB adapter 33fa:0010 or 33fa:0012] --> B[btusb binds to controller]
     B --> C[Normal HCI init starts]
-    C --> D[Kernel sends fragile local-name or extended-feature probe]
+    C --> D[Kernel sends fragile buffer-size, local-name, or extended-feature probe]
     D --> E[BR8554 fails to answer correctly]
     E --> F[Init stalls or times out]
 ```
@@ -57,9 +57,10 @@ flowchart TD
 | --- | --- | --- | --- |
 | USB driver | `drivers/bluetooth/btusb.c` | `BTUSB_BARROT_BR8554` | Device-specific match flag |
 | USB driver | `drivers/bluetooth/btusb.c` | `33fa:0010`, `33fa:0012` in `quirks_table[]` | Limits scope to known BR8554 IDs |
+| HCI core | `include/net/bluetooth/hci.h` | `HCI_QUIRK_BROKEN_READ_BUFFER_SIZE` | Named quirk bit for the BR/EDR buffer-size read skip |
 | HCI core | `include/net/bluetooth/hci.h` | `HCI_QUIRK_BROKEN_LOCAL_EXT_FEATURES` | Named quirk bit for page-1 extended-feature read skip |
 | HCI core | `include/net/bluetooth/hci.h` | `HCI_QUIRK_BROKEN_READ_LOCAL_NAME` | Named quirk bit for local-name read skip |
-| HCI sync path | `net/bluetooth/hci_sync.c` | early returns in local-name and extended-feature reads | Prevents fragile startup probes from being sent |
+| HCI sync path | `net/bluetooth/hci_sync.c` | early returns in buffer-size, local-name, and extended-feature reads | Prevents fragile startup probes from being sent |
 
 ## Files Changed by the Consolidated Patch
 
@@ -86,6 +87,7 @@ That flag is then attached to the Barrot device IDs in `quirks_table[]`:
 
 When `btusb_probe()` runs, the patch checks whether the matched device carries that flag. If it does, the driver sets:
 
+- `HCI_QUIRK_BROKEN_READ_BUFFER_SIZE`
 - `HCI_QUIRK_BROKEN_LOCAL_EXT_FEATURES`
 - `HCI_QUIRK_BROKEN_LOCAL_EXT_FEATURES_PAGE_2`
 - `HCI_QUIRK_BROKEN_READ_LOCAL_NAME`
@@ -100,8 +102,11 @@ This is the bridge between USB device identification and the HCI-layer workaroun
 
 The patch introduces new HCI quirk enum entries:
 
+- `HCI_QUIRK_BROKEN_READ_BUFFER_SIZE`
 - `HCI_QUIRK_BROKEN_LOCAL_EXT_FEATURES`
 - `HCI_QUIRK_BROKEN_READ_LOCAL_NAME`
+
+The entries are appended at the end of the quirk enum. This preserves the numeric values of all existing quirks for other Bluetooth modules.
 
 The comment added with the enum makes the intent explicit:
 
@@ -115,12 +120,16 @@ This change is purely definitional, but it is necessary so the rest of the stack
 
 The patch modifies:
 
+- `hci_read_buffer_size_sync(struct hci_dev *hdev)`
 - `hci_read_local_name_sync(struct hci_dev *hdev)`
 - `hci_read_local_ext_features_1_sync(struct hci_dev *hdev)`
 
 New behavior:
 
 ```c
+if (test_bit(HCI_QUIRK_BROKEN_READ_BUFFER_SIZE, &hdev->quirks))
+	return 0;
+
 if (test_bit(HCI_QUIRK_BROKEN_READ_LOCAL_NAME, &hdev->quirks))
 	return 0;
 
@@ -135,7 +144,7 @@ hci_read_local_name_sync(hdev);
 hci_read_local_ext_features_sync(hdev, 0x01);
 ```
 
-That means the stack does not issue the local-name or page-1 extended-features reads that trigger BR8554 initialization failures.
+That means the stack does not issue the BR/EDR buffer-size, local-name, or page-1 extended-features reads that trigger BR8554 initialization failures. The independent LE buffer-size read still runs later in stage 2 and supplies the LE ACL capacity.
 
 ## Component Graph
 
@@ -159,7 +168,7 @@ graph LR
 
 1. `btusb` binds to the USB device.
 2. Normal HCI initialization proceeds.
-3. The stack attempts local-name or extended-feature startup reads.
+3. The stack attempts a buffer-size, local-name, or extended-feature startup read.
 4. The affected BR8554 controller does not handle those requests correctly.
 5. Initialization stalls or times out.
 
@@ -167,7 +176,7 @@ graph LR
 
 1. `btusb` matches `33fa:0010` or `33fa:0012`.
 2. `btusb_probe()` sets the Barrot BR8554 quirk bundle.
-3. The HCI sync path reaches the local-name or extended-feature read.
+3. The HCI sync path reaches the buffer-size, local-name, or extended-feature read.
 4. The quirk check short-circuits the call.
 5. Initialization continues without sending the failing request.
 
@@ -203,7 +212,7 @@ sequenceDiagram
 - The workaround is limited to the two known Barrot USB IDs.
 - No behavior changes are introduced for unrelated Bluetooth controllers.
 - The patch avoids fragile initialization requests instead of changing firmware, transport settings, or generic HCI behavior.
-- The tradeoff is that the kernel does not fetch the local name or that extended feature page for the affected devices during startup.
+- The tradeoff is that the kernel does not fetch the BR/EDR buffer size, local name, or that extended feature page for the affected devices during startup. LE buffer sizing remains enabled.
 - The patch prefers successful controller bring-up over querying optional data that these controllers fail to report correctly.
 
 ## Repository Artifacts
@@ -240,7 +249,7 @@ The scripts in this repository implement the patch workflow around the consolida
 1. Verifies the rebuilt module artifacts exist.
 2. Requires root privileges.
 3. Backs up existing installed Bluetooth modules under `/lib/modules/$(uname -r)`.
-4. Installs the rebuilt modules.
+4. Installs the matching rebuilt Bluetooth module set. This is required on `CONFIG_MODVERSIONS` kernels because rebuilding the core can change exported Bluetooth symbol CRCs used by transport and protocol modules.
 5. Runs `depmod -a <kernel-release>`.
 
 ## Expected Validation Results
@@ -248,12 +257,12 @@ The scripts in this repository implement the patch workflow around the consolida
 After rebuilding and loading the patched modules, the expected result is:
 
 - the BR8554 adapter enumerates under `btusb`
-- controller initialization completes instead of hanging on local-name or extended-feature reads
+- controller initialization completes instead of hanging on buffer-size, local-name, or extended-feature reads
 - the Bluetooth controller becomes usable from normal user-space tools
 
 Useful validation checks:
 
-- `dmesg` no longer shows the initialization timeout tied to the failing local-name or feature read
+- `dmesg` no longer shows the initialization timeout tied to opcode `0x1005` or the failing local-name and feature reads
 - `lsusb` shows one of the supported USB IDs
 - `modinfo btusb` reports a vermagic matching `uname -r`
 - the loaded `btusb.ko` contains the `Barrot BR8554 init quirks` marker

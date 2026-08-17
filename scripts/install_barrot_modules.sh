@@ -64,11 +64,18 @@ if [ ! -d "${KERNEL_DIR}/drivers/bluetooth" ] || [ ! -d "${KERNEL_DIR}/net/bluet
 fi
 
 MODULES=(
-	"drivers/bluetooth/btusb.ko:/kernel/drivers/bluetooth/btusb.ko"
+	"drivers/bluetooth/ath3k.ko:/kernel/drivers/bluetooth/ath3k.ko"
+	"drivers/bluetooth/bcm203x.ko:/kernel/drivers/bluetooth/bcm203x.ko"
+	"drivers/bluetooth/bfusb.ko:/kernel/drivers/bluetooth/bfusb.ko"
+	"drivers/bluetooth/bpa10x.ko:/kernel/drivers/bluetooth/bpa10x.ko"
 	"drivers/bluetooth/btbcm.ko:/kernel/drivers/bluetooth/btbcm.ko"
 	"drivers/bluetooth/btintel.ko:/kernel/drivers/bluetooth/btintel.ko"
+	"drivers/bluetooth/btmrvl.ko:/kernel/drivers/bluetooth/btmrvl.ko"
+	"drivers/bluetooth/btmrvl_sdio.ko:/kernel/drivers/bluetooth/btmrvl_sdio.ko"
 	"drivers/bluetooth/btrtl.ko:/kernel/drivers/bluetooth/btrtl.ko"
+	"drivers/bluetooth/btusb.ko:/kernel/drivers/bluetooth/btusb.ko"
 	"drivers/bluetooth/hci_uart.ko:/kernel/drivers/bluetooth/hci_uart.ko"
+	"drivers/bluetooth/hci_vhci.ko:/kernel/drivers/bluetooth/hci_vhci.ko"
 	"net/bluetooth/bluetooth.ko:/kernel/net/bluetooth/bluetooth.ko"
 	"net/bluetooth/rfcomm/rfcomm.ko:/kernel/net/bluetooth/rfcomm/rfcomm.ko"
 	"net/bluetooth/bnep/bnep.ko:/kernel/net/bluetooth/bnep/bnep.ko"
@@ -129,6 +136,7 @@ done
 depmod -a "${KERNEL_RELEASE}"
 
 echo "depmod completed. Reload modules with:"
-echo "  modprobe -r btusb btbcm btintel btrtl rfcomm bnep hidp bluetooth"
+echo "  modprobe -r rfcomm bnep hidp btusb hci_uart btrtl btintel btbcm bluetooth"
 echo "  modprobe bluetooth"
-echo "  modprobe btbcm btintel btrtl btusb"
+echo "  modprobe hci_uart"
+echo "  modprobe btusb"

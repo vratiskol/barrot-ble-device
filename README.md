@@ -1,8 +1,8 @@
 # Barrot BR8554 Linux Bluetooth Patch Set
 
-This repository packages a Linux Bluetooth patch set for Barrot BR8554-based USB adapters that hang during controller initialization when the kernel sends fragile BR/EDR feature and local-name probes.
+This repository packages a Linux Bluetooth patch set for Barrot BR8554-based USB adapters that hang during controller initialization when the kernel sends fragile BR/EDR buffer-size, feature, and local-name probes.
 
-The consolidated fix adds a USB quirk bundle for device IDs `33fa:0010` and `33fa:0012`, introduces `HCI_QUIRK_BROKEN_LOCAL_EXT_FEATURES` and `HCI_QUIRK_BROKEN_READ_LOCAL_NAME`, and skips the offending startup reads for affected controllers only.
+The consolidated fix adds a USB quirk bundle for device IDs `33fa:0010` and `33fa:0012`, introduces dedicated quirks for `HCI_OP_READ_BUFFER_SIZE`, local extended features, and local name, and skips the offending startup reads for affected controllers only. New quirk bits are appended to the enum so existing in-kernel quirk numbers remain stable.
 
 ## Example Hardware
 
@@ -58,7 +58,7 @@ After installation, reboot or reload the Bluetooth modules, then validate:
 
 ## Notes
 
-- The scripts do not ship or download a kernel tree. They operate on an existing local kernel source/build directory.
+- `scripts/fetch_kali_linux_rpi_source.sh` can fetch the exact source package for the running Kali Raspberry Pi kernel; the build scripts can also operate on an existing source tree.
 - The build script seeds `.config` and `Module.symvers` from `/lib/modules/$(uname -r)/build` by default when available.
-- Module installation backs up replaced files under `/lib/modules/$(uname -r)` before writing new ones.
+- Module installation backs up replaced files under `/lib/modules/$(uname -r)` before writing the matching rebuilt Bluetooth module set. The full set is required because `CONFIG_MODVERSIONS` can change Bluetooth symbol CRCs when the core is rebuilt.
 - After installation, reload the Bluetooth stack or reboot.
