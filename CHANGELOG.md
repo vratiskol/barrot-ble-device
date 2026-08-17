@@ -7,6 +7,7 @@
 - Install the complete matching rebuilt Bluetooth module set because this kernel's `CONFIG_MODVERSIONS` rejects stock transport modules against the rebuilt core.
 - Fix runtime marker detection for compressed installed modules and scope recent-log reporting to Barrot HCI adapters.
 - Add an exact-version Kali Raspberry Pi source fetch helper using `/data/tmp` by default.
+- Clarify that `--kernel-dir` requires unpacked kernel sources, with a safe Debian build-only example and explicit rejection of `/boot` and `vmlinuz` paths.
 
 ## v0.2.0
 

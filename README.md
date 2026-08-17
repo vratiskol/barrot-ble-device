@@ -28,26 +28,58 @@ The rebuild script applies only `patches/barrot_quirk.patch`. The split patches 
 
 ## Requirements
 
-- Linux kernel source tree that matches the target runtime kernel
+- A full, unpacked Linux kernel source tree that matches the target runtime kernel
 - `make`, `patch`, and `python3`
 - root privileges only for module installation
 
 ## Quick Start
 
-Clone this repository and point the scripts at a prepared Linux kernel source tree that matches the target runtime kernel:
+Clone this repository:
 
 ```bash
 git clone https://github.com/vratiskol/barrot-ble-device.git barrot-ble-device
 cd barrot-ble-device
 ```
 
-Build and install against the running kernel release:
+### What `--kernel-dir` means
+
+`--kernel-dir` must point to the **top-level directory of unpacked Linux kernel source code**. That directory must contain all of these paths:
+
+```text
+Makefile
+drivers/bluetooth/
+include/net/bluetooth/
+```
+
+It must **not** point to `/boot` or a `/boot/vmlinuz-*` file. A `vmlinuz` file is the compiled kernel image, not source code. On packaged Debian systems, `/lib/modules/$(uname -r)/build` normally points to kernel headers; the script can read configuration and symbol data from those headers automatically, but it still needs the separate full source tree in `--kernel-dir`.
+
+For example, on Debian 13 with a `6.12.*` kernel, install the matching headers, source archive, and build tools, then unpack the source into a user-writable directory:
+
+```bash
+sudo apt update
+sudo apt install build-essential bc bison flex libssl-dev libelf-dev dwarves \
+  "linux-headers-$(uname -r)" linux-source-6.12 patch python3
+mkdir -p "$HOME/src"
+tar -xaf /usr/src/linux-source-6.12.tar.xz -C "$HOME/src"
+```
+
+Replace `6.12` if `uname -r` reports a different kernel source series. The source and headers must correspond to the kernel release for which the modules are being built. If the running kernel came from Debian backports, ensure the matching backports repository is enabled before installing its headers and source package.
+
+Start with a build-only run. This patches and builds inside the source tree but does not replace any system modules:
 
 ```bash
 ./scripts/rebuild_barrot_ble.sh \
-  --kernel-dir /path/to/linux \
+  --kernel-dir "$HOME/src/linux-source-6.12" \
   --kernel-release "$(uname -r)" \
-  --install
+  --no-install
+```
+
+Only after that succeeds, install the modules as root:
+
+```bash
+sudo ./scripts/install_barrot_modules.sh \
+  --kernel-dir "$HOME/src/linux-source-6.12" \
+  --kernel-release "$(uname -r)"
 ```
 
 After installation, reboot or reload the Bluetooth modules, then validate:

@@ -10,8 +10,11 @@ Apply the consolidated Barrot BR8554 patch set to a Linux kernel source tree
 and rebuild the Bluetooth modules.
 
 Options:
-  --kernel-dir PATH       Path to the Linux kernel source tree. Defaults to the
-                          current working directory.
+  --kernel-dir PATH       Top-level directory of an unpacked Linux kernel source
+                          tree. It must contain Makefile, drivers/bluetooth, and
+                          include/net/bluetooth. Do not pass /boot, vmlinuz, or
+                          a kernel-headers directory. Defaults to the current
+                          working directory.
   --kernel-release REL    Module vermagic/kernel release. Defaults to uname -r.
   --kernel-config PATH    .config to copy before build. Defaults to the running
                           kernel header config when present.
@@ -133,12 +136,20 @@ while (($#)); do
 	esac
 done
 
+if [ ! -d "${KERNEL_DIR}" ]; then
+	echo "--kernel-dir must be an unpacked Linux kernel source directory: ${KERNEL_DIR}" >&2
+	echo "Do not pass /boot or a /boot/vmlinuz-* kernel image." >&2
+	exit 1
+fi
+
 KERNEL_DIR="$(cd "${KERNEL_DIR}" && pwd)"
 
 if [ ! -f "${KERNEL_DIR}/Makefile" ] ||
 	[ ! -d "${KERNEL_DIR}/include/net/bluetooth" ] ||
 	[ ! -d "${KERNEL_DIR}/drivers/bluetooth" ]; then
-	echo "Kernel source tree not found at ${KERNEL_DIR}" >&2
+	echo "Complete kernel source tree not found at ${KERNEL_DIR}" >&2
+	echo "Expected Makefile, drivers/bluetooth/, and include/net/bluetooth/." >&2
+	echo "Do not pass /boot, a /boot/vmlinuz-* image, or a kernel-headers-only directory." >&2
 	exit 1
 fi
 
