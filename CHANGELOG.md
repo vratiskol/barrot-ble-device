@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.3.0
+
+- Skip the BR8554 `HCI_OP_READ_BUFFER_SIZE` probe after live `0x1005` timeouts left affected adapters down with a zero ACL MTU.
+- Append new HCI quirk bits at the end of the enum to preserve existing quirk numbering across modules.
+- Install the complete matching rebuilt Bluetooth module set because this kernel's `CONFIG_MODVERSIONS` rejects stock transport modules against the rebuilt core.
+- Fix runtime marker detection for compressed installed modules and scope recent-log reporting to Barrot HCI adapters.
+- Add an exact-version Kali Raspberry Pi source fetch helper using `/data/tmp` by default.
+- Clarify that `--kernel-dir` requires unpacked kernel sources, with a safe Debian build-only example and explicit rejection of `/boot` and `vmlinuz` paths.
+
 ## v0.2.0
 
 - Expand the Barrot BR8554 workaround to skip fragile local-name reads in addition to local extended-feature reads.

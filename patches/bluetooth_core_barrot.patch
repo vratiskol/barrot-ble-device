@@ -2,25 +2,23 @@ diff --git a/include/net/bluetooth/hci.h b/include/net/bluetooth/hci.h
 index 4b3200542..eac750c90 100644
 --- a/include/net/bluetooth/hci.h
 +++ b/include/net/bluetooth/hci.h
-@@ -286,6 +286,21 @@ enum {
+@@ -369,4 +369,19 @@ enum {
+ 	 * This quirk must be set before hci_register_dev is called.
  	 */
- 	HCI_QUIRK_BROKEN_MWS_TRANSPORT_CONFIG,
- 
-+	/*
-+	 * Some controllers like the Barrot BR8554 (33fa:0010/0012) are non
-+	 * compliant and timeout when HCI_OP_READ_LOCAL_EXT_FEATURES is sent.
-+	 * Setting this quirk skips the read and lets the device finish
-+	 * initialization.
+ 	HCI_QUIRK_BROKEN_READ_PAGE_SCAN_TYPE,
++
++	/* Skip HCI_OP_READ_BUFFER_SIZE for controllers which time out on it.
++	 * LE buffer sizing is queried separately during initialization.
++	 */
++	HCI_QUIRK_BROKEN_READ_BUFFER_SIZE,
++
++	/* Some controllers like the Barrot BR8554 (33fa:0010/0012) are non
++	 * compliant and time out on HCI_OP_READ_LOCAL_EXT_FEATURES.
 +	 */
 +	HCI_QUIRK_BROKEN_LOCAL_EXT_FEATURES,
 +
-+	/*
-+	 * Some controllers falsely advertise BR/EDR local-name support but
-+	 * timeout or wedge when HCI_OP_READ_LOCAL_NAME is sent during init.
-+	 * Setting this quirk skips that non-essential startup read.
++	/* Some controllers falsely advertise BR/EDR local-name support but
++	 * time out or wedge on HCI_OP_READ_LOCAL_NAME during initialization.
 +	 */
 +	HCI_QUIRK_BROKEN_READ_LOCAL_NAME,
-+
- 	/* When this quirk is set, max_page for local extended features
- 	 * is set to 1, even if controller reports higher number. Some
- 	 * controllers (e.g. RTL8723CS) report more pages, but they
+ };

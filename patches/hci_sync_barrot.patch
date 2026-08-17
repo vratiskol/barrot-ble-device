@@ -2,11 +2,32 @@ diff --git a/net/bluetooth/hci_sync.c b/net/bluetooth/hci_sync.c
 index 80eab1d0e..c3fc5d4de 100644
 --- a/net/bluetooth/hci_sync.c
 +++ b/net/bluetooth/hci_sync.c
-@@ -3779,0 +3780,3 @@ static int hci_read_local_name_sync(struct hci_dev *hdev)
+@@ -3710,6 +3710,9 @@ static int hci_init1_sync(struct hci_dev *hdev)
+ /* Read Buffer Size (ACL mtu, max pkt, etc.) */
+ static int hci_read_buffer_size_sync(struct hci_dev *hdev)
+ {
++	if (test_bit(HCI_QUIRK_BROKEN_READ_BUFFER_SIZE, &hdev->quirks))
++		return 0;
++
+ 	return __hci_cmd_sync_status(hdev, HCI_OP_READ_BUFFER_SIZE,
+ 				     0, NULL, HCI_CMD_TIMEOUT);
+ }
+@@ -3724,6 +3727,9 @@ static int hci_read_dev_class_sync(struct hci_dev *hdev)
+ /* Read Local Name */
+ static int hci_read_local_name_sync(struct hci_dev *hdev)
+ {
 +	if (test_bit(HCI_QUIRK_BROKEN_READ_LOCAL_NAME, &hdev->quirks))
 +		return 0;
 +
-@@ -3956,0 +3960,3 @@ static int hci_read_local_ext_features_1_sync(struct hci_dev *hdev)
+ 	return __hci_cmd_sync_status(hdev, HCI_OP_READ_LOCAL_NAME,
+ 				     0, NULL, HCI_CMD_TIMEOUT);
+ }
+@@ -3901,6 +3907,9 @@ static int hci_read_local_ext_features_sync(struct hci_dev *hdev, u8 page)
+ 
+ static int hci_read_local_ext_features_1_sync(struct hci_dev *hdev)
+ {
 +	if (test_bit(HCI_QUIRK_BROKEN_LOCAL_EXT_FEATURES, &hdev->quirks))
 +		return 0;
 +
+ 	return hci_read_local_ext_features_sync(hdev, 0x01);
+ }

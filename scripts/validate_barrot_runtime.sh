@@ -38,13 +38,29 @@ done
 
 status=0
 marker_found=0
+error_threshold="${BARROT_ERROR_THRESHOLD:-10}"
+
+if ! [[ "${error_threshold}" =~ ^[0-9]+$ ]]; then
+	echo "BARROT_ERROR_THRESHOLD must be a non-negative integer." >&2
+	exit 2
+fi
+
+module_has_marker() {
+	local module_path="$1"
+	case "${module_path}" in
+		*.xz) xz -dc "${module_path}" ;;
+		*.gz) gzip -dc "${module_path}" ;;
+		*.zst) zstd -dcq "${module_path}" ;;
+		*) cat "${module_path}" ;;
+	esac | grep -a "Barrot BR8554 init quirks" >/dev/null
+}
 
 echo "kernel_release=$(uname -r)"
 if modinfo btusb >/dev/null 2>&1; then
 	btusb_path="$(modinfo -n btusb)"
 	echo "btusb_module=${btusb_path}"
 	echo "btusb_vermagic=$(modinfo -F vermagic btusb)"
-	if grep -a -q "Barrot BR8554 init quirks" "${btusb_path}"; then
+	if module_has_marker "${btusb_path}"; then
 		marker_found=1
 		echo "barrot_patch_marker=present"
 	else
@@ -80,6 +96,7 @@ find_usb_parent() {
 echo
 echo "barrot_hci_adapters:"
 found_hci=0
+barrot_hcis=()
 for hci_path in /sys/class/bluetooth/hci[0-9]*; do
 	[ -e "${hci_path}" ] || continue
 	hci="$(basename "${hci_path}")"
@@ -98,6 +115,7 @@ for hci_path in /sys/class/bluetooth/hci[0-9]*; do
 	esac
 
 	found_hci=1
+	barrot_hcis+=("${hci}")
 	hciconfig_out="$(hciconfig -a "${hci}" 2>/dev/null || true)"
 	address="$(printf '%s\n' "${hciconfig_out}" | sed -n 's/.*BD Address: \([^ ]*\).*/\1/p' | head -1)"
 	if [ -z "${address}" ]; then
@@ -121,7 +139,27 @@ fi
 
 echo
 echo "recent_barrot_kernel_messages:"
-journalctl -k --since "-30 min" --no-pager --grep "Bluetooth: hci|Barrot BR8554" 2>/dev/null | tail -80 || true
+if [ ${#barrot_hcis[@]} -gt 0 ]; then
+	journal_pattern="Barrot BR8554"
+	for hci in "${barrot_hcis[@]}"; do
+		journal_pattern+="|Bluetooth: ${hci}:"
+	done
+	recent_messages="$(journalctl -k --since "-30 min" --no-pager 2>/dev/null |
+		grep -E "${journal_pattern}" | tail -80 || true)"
+	printf '%s\n' "${recent_messages}"
+	echo
+	echo "barrot_error_counts_30m (failure_threshold=${error_threshold}):"
+	for hci in "${barrot_hcis[@]}"; do
+		error_count="$(printf '%s\n' "${recent_messages}" |
+			grep -Ec "Bluetooth: ${hci}: (command .* timeout|Opcode .* failed|ACL packet for unknown connection handle)" || true)"
+		printf '  %s=%s\n' "${hci}" "${error_count}"
+		if [ "${error_count}" -gt "${error_threshold}" ]; then
+			status=1
+		fi
+	done
+else
+	echo "  no Barrot HCI adapters found"
+fi
 
 if [ "${marker_found}" -eq 1 ] && [ "${status}" -eq 0 ]; then
 	echo
